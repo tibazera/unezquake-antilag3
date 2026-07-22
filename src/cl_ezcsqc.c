@@ -1052,6 +1052,19 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 
 	visual_effects = CL_EZCSQC_ProjectileVisualEffects(self);
 
+	/*
+	 * Antilag 3: draw the catch-up ghost exactly once, on this entity's first
+	 * predraw, regardless of local vs server-authoritative path below. This
+	 * runs for every client that renders the entity (shooter and target
+	 * alike) -- there is no server-side distinction between them in this
+	 * protocol, so cl_antilag3_ghost is what lets each player's own client
+	 * decide whether to show it.
+	 */
+	if (!self->ghost_drawn && self->catchup_ms >= ANTILAG3_GHOST_MIN_MS && cl_antilag3_ghost.integer) {
+		self->ghost_drawn = true;
+		R_ParticleTrail(self->ghost_from_origin, self->ghost_to_origin, RAIL_TRAIL2);
+	}
+
 	if (self->local_projectile) {
 		double projectile_time = cl.time;
 
@@ -1873,6 +1886,25 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 		}
 	}
 
+	if (sendflags & PROJECTILE_CATCHUP) {
+		byte catchup_q = MSG_ReadByte();
+
+		/*
+		 * Antilag 3: only arm the ghost on first sight of this entity slot.
+		 * `is_new` already distinguishes a genuinely new projectile from a
+		 * mid-flight correction of the same entnum, so this can't re-trigger
+		 * the ghost draw on every ordinary origin update.
+		 */
+		if (is_new) {
+			self->catchup_ms = (catchup_q / 255.0f) * (ANTILAG3_CATCHUP_QUANT_CEILING * 1000.0f);
+			self->ghost_drawn = false;
+		}
+	}
+	else if (is_new) {
+		self->catchup_ms = 0;
+		self->ghost_drawn = false;
+	}
+
 	if (is_new) {
 		// New projectiles become renderable EZCSQC entities with packet-style trail state.
 		self->drawmask = DRAWMASK_PROJECTILE;
@@ -1890,6 +1922,18 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 		VectorCopy(self->trail_origin, self->cent.trails[3].stop);
 		if (CL_EZCSQC_ProjectileVisualEffects(self) & EF_GRENADE) {
 			CL_EZCSQC_SetGrenadeServerState(self, true);
+		}
+
+		/*
+		 * Antilag 3: the ghost trail spans from where this projectile would
+		 * have spawned with zero catch-up (trail_origin, seeded above from
+		 * PROJECTILE_SPAWN_ORIGIN) to where it actually spawned after the
+		 * server's antilag_lagmove_all_proj() catch-up (s_origin). Both
+		 * points are already authoritative server data, so no guessing.
+		 */
+		if (self->catchup_ms >= ANTILAG3_GHOST_MIN_MS) {
+			VectorCopy(self->trail_origin, self->ghost_from_origin);
+			VectorCopy(self->s_origin, self->ghost_to_origin);
 		}
 	}
 	else if ((sendflags & PROJECTILE_ORIGIN) && (CL_EZCSQC_ProjectileVisualEffects(self) & EF_GRENADE)) {

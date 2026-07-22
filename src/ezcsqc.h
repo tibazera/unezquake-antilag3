@@ -51,6 +51,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PROJECTILE_ANGLES		(1 << 2)
 #define PROJECTILE_OWNER		(1 << 3)
 #define PROJECTILE_SPAWN_ORIGIN		(1 << 4)
+/* Antilag 3: quantized antilag catch-up (seconds) applied to this projectile's
+ * spawn. Only present on the wire when catch-up > 0 (see weapons.c server side).
+ * Quantization ceiling: ANTILAG3_CATCHUP_QUANT_CEILING (0.100s) in progs.h. */
+#define PROJECTILE_CATCHUP		(1 << 5)
+
+#define ANTILAG3_CATCHUP_QUANT_CEILING	0.100f
+#define ANTILAG3_GHOST_MIN_MS		8.0f	/* below this, the ghost isn't worth drawing */
 
 #define WEAPONDEF_INIT			(1 << 0)
 #define WEAPONDEF_FLAGS			(1 << 1)
@@ -98,6 +105,15 @@ typedef struct ezcsqc_entity_s {
 	int	partcount;
 	int	drawcount;
 	int	debug_predraw_count;
+
+	/* Antilag 3: target-side catch-up ghost. Set once from PROJECTILE_CATCHUP
+	 * on first sight of the entity; never re-armed by later updates, so a
+	 * projectile that starts each new trail life (e.g. after a bounce) can't
+	 * re-trigger the ghost draw repeatedly. */
+	float	catchup_ms;
+	qbool	ghost_drawn;
+	vec3_t	ghost_from_origin;
+	vec3_t	ghost_to_origin;
 	qbool	trail_seeded;
 	qbool	trail_started;
 	qbool	debug_close_logged;
@@ -187,6 +203,11 @@ typedef struct weppredsound_s {
 
 extern cvar_t cl_pext_ezcsqc;
 extern cvar_t cl_ezcsqc_debug;
+/* Antilag 3: 0 disables the catch-up ghost entirely (behaves like plain
+ * antilag 1); 1 enables it. Kept as a separate cvar from cl_pext_ezcsqc so
+ * server operators / testers can A/B antilag 1 vs antilag 3 on the same
+ * protocol without renegotiating the extension. */
+extern cvar_t cl_antilag3_ghost;
 extern ezcsqc_world_t ezcsqc;
 extern ezcsqc_entity_t ezcsqc_entities[MAX_EDICTS];
 extern ezcsqc_entity_t *ezcsqc_networkedents[MAX_EDICTS];

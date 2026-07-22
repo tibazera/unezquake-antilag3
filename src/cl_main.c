@@ -130,6 +130,7 @@ cvar_t  cl_sproj_xerp = { "cl_sproj_xerp", "0" }; // extrapolate projectiles bas
 #ifdef FTE_PEXT_CSQC
 cvar_t  cl_pext_ezcsqc = { "cl_pext_ezcsqc", "1" }; // native CSQC/EZCSQC weapon and projectile prediction
 cvar_t  cl_ezcsqc_debug = { "cl_ezcsqc_debug", "0" }; // print native CSQC/EZCSQC parser diagnostics
+cvar_t  cl_antilag3_ghost = { "cl_antilag3_ghost", "1" }; // draw target-side antilag catch-up ghost trail (Antilag 3); 0 = behave like plain antilag 1
 #endif
 #endif
 #ifdef FTE_PEXT_256PACKETENTITIES
@@ -2069,6 +2070,7 @@ static void CL_InitLocal(void)
 #ifdef FTE_PEXT_CSQC
 	Cvar_Register(&cl_pext_ezcsqc);
 	Cvar_Register(&cl_ezcsqc_debug);
+	Cvar_Register(&cl_antilag3_ghost);
 #endif
 #endif // PROTOCOL_VERSION_FTE
 #ifdef FTE_PEXT_256PACKETENTITIES
