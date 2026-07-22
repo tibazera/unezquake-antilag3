@@ -147,8 +147,8 @@ static void qtvlist_print_server_and_qtvaddress_list(void)
 
 		for (j = 0; j < json_array_size(gs_array); j++) {
 			gs_entry = json_array_get(gs_array, j);
-			Com_Printf("%s:%" JSON_INTEGER_FORMAT " %s\n", json_string_value(json_object_get(gs_entry, "Hostname")),
-						json_integer_value(json_object_get(gs_entry, "Port")),
+			Com_Printf("%s:%lld %s\n", json_string_value(json_object_get(gs_entry, "Hostname")),
+						(long long)json_integer_value(json_object_get(gs_entry, "Port")),
 						json_string_value(json_object_get(gs_entry, "Link")));
 		}
 	}
@@ -259,7 +259,7 @@ static void qtvlist_find_player(const char *name, qbool list_all)
 				if (player_name) {
 					if (list_all || strstri(player_name, name) != NULL) {
 						found++;
-						Com_Printf("&cff4%15s&r - %s:%" JSON_INTEGER_FORMAT "\n", player_name, json_string_value(json_object_get(gs_entry, "Hostname")), json_integer_value(json_object_get(gs_entry, "Port")));
+						Com_Printf("&cff4%15s&r - %s:%lld\n", player_name, json_string_value(json_object_get(gs_entry, "Hostname")), (long long)json_integer_value(json_object_get(gs_entry, "Port")));
 					}
 				}
 			}
@@ -392,7 +392,14 @@ static void qtvlist_get_gameaddress(const char *qtvaddress, char *out_addr, size
 
 				port = json_integer_value(json_object_get(gs_entry, "Port"));
 
-				snprintf(out_addr, out_addr_len, "%s:%" JSON_INTEGER_FORMAT, ipaddress, port);
+				/*
+				 * JSON_INTEGER_FORMAT expands to "I64d" on MinGW, which
+				 * -Werror=format rejects for a json_int_t (long long)
+				 * argument in this toolchain/GCC combination. Cast and use
+				 * %lld directly instead of relying on the platform macro;
+				 * pre-existing portability issue, unrelated to Antilag 3.
+				 */
+				snprintf(out_addr, out_addr_len, "%s:%lld", ipaddress, (long long)port);
 				return;
 			}
 		}
