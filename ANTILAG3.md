@@ -61,17 +61,37 @@ was needed.
 
 ## Testing antilag 1 vs antilag 3
 
-Both live on the same protocol and the same `sv_antilag 1` server setting.
-The only difference is client-side:
+`sv_antilag` now has a real fourth value on the server:
 
 ```
-cl_antilag3_ghost 0   // classic antilag 1 behavior, no ghost
-cl_antilag3_ghost 1   // Antilag 3: target-side catch-up ghost (default)
+sv_antilag 0   // disabled
+sv_antilag 1   // classic antilag 1 (byte-for-byte upstream behavior)
+sv_antilag 2   // MVDSV-side antilag (unchanged)
+sv_antilag 3   // Antilag 3: identical physics/collision to mode 1,
+               // plus PROJECTILE_CATCHUP advertised to clients
 ```
 
-This lets the same server, same demo, same match be watched with the
-cvar flipped on the target's client to compare perceived fairness directly,
-without needing a second server build or protocol renegotiation.
+`ANTILAG_ENABLED()` (`include/progs.h`) treats `1` and `3` identically for
+every rewind/collision/damage check in `antilag.c` and `weapons.c` — hit
+outcomes are byte-for-byte the same in both modes. The *only* difference is
+in `SendEntity_Projectile()`: catch-up data is only put on the wire when
+`sv_antilag` is exactly `3`, arming the client-side ghost.
+
+Client-side, `cl_antilag3_ghost` (default `1`) can still disable the ghost
+render even when the server is running mode 3, for per-player preference —
+but the A/B comparison itself is meant to be done by switching the server:
+
+```
+rcon sv_antilag 1   // baseline: classic antilag 1
+rcon sv_antilag 3   // Antilag 3: same hits, ghost rendered to clients
+```
+
+This lets an operator run the exact same match/demo twice, changing only
+the server cvar, to compare perceived fairness directly — no second server
+build, no protocol renegotiation, no client-side-only toggle required. The
+player-facing `.antilag` vote command still only cycles `0->1->2->0`
+(unchanged) — `sv_antilag 3` is operator-selected only (rcon/config), since
+it is a testing/comparison mode, not a player-facing option.
 
 ## What this does NOT do
 
