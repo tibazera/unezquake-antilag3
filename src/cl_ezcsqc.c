@@ -1820,6 +1820,14 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 {
 	int sendflags = MSG_ReadByte();
+	/*
+	 * Antilag 3: true only if this packet carried a PROJECTILE_SPAWN_ORIGIN
+	 * that was actually accepted as the trail seed (not suppressed by the
+	 * server when pos1 is zero, and not rejected here as a likely teleport).
+	 * Without this, trail_origin falls back to s_origin below and the ghost
+	 * would draw a zero-length/degenerate trail.
+	 */
+	qbool trail_origin_reliable = false;
 
 	/*
 	 * Match KTX's post-port payload exactly. PROJECTILE_OWNER contains only the
@@ -1883,6 +1891,7 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 		 */
 		if (is_new && VectorLength(diff) < 150) {
 			VectorCopy(spawn_origin, self->trail_origin);
+			trail_origin_reliable = true;
 		}
 	}
 
@@ -1931,9 +1940,17 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 		 * server's antilag_lagmove_all_proj() catch-up (s_origin). Both
 		 * points are already authoritative server data, so no guessing.
 		 */
-		if (self->catchup_ms >= ANTILAG3_GHOST_MIN_MS) {
+		if (self->catchup_ms >= ANTILAG3_GHOST_MIN_MS && trail_origin_reliable) {
 			VectorCopy(self->trail_origin, self->ghost_from_origin);
 			VectorCopy(self->s_origin, self->ghost_to_origin);
+		}
+		else {
+			/*
+			 * No reliable non-antilagged origin for this spawn (SPAWN_ORIGIN
+			 * absent or rejected as a likely teleport) -- pre-mark as drawn so
+			 * Predraw_Projectile never attempts a zero-length/degenerate trail.
+			 */
+			self->ghost_drawn = true;
 		}
 	}
 	else if ((sendflags & PROJECTILE_ORIGIN) && (CL_EZCSQC_ProjectileVisualEffects(self) & EF_GRENADE)) {
