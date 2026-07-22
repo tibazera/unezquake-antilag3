@@ -149,6 +149,19 @@ static void CL_EZCSQC_Ent_Remove(ezcsqc_entity_t *ent)
 	ent->modelindex = 0;
 	ent->isfree = true;
 	ent->freetime = Sys_DoubleTime();
+
+	/*
+	 * Antilag 3: this slot's ezcsqc_entity_t is a recycled fixed-pool struct,
+	 * not zero-initialized on reuse. Without clearing these here, a new
+	 * projectile that reuses this entnum inherits ghost_drawn=true and a
+	 * stale (non-zero) trail_origin from whatever previously occupied this
+	 * slot -- which silently defeats both the zero-vector fallback check
+	 * and the ghost re-arm logic in EntUpdate_Projectile/Predraw_Projectile,
+	 * making the catch-up ghost appear once and never again.
+	 */
+	ent->ghost_drawn = false;
+	ent->catchup_ms = 0;
+	VectorClear(ent->trail_origin);
 }
 
 void CL_EZCSQC_InitializeEntities(void)
